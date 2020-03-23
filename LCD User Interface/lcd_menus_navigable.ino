@@ -19,6 +19,10 @@ bool flip = 0;
 int oldPosition  = -999;
 uint8_t defaultO2 = 60;
 
+void printWarning() {
+  tft.drawCentreString("WARNING!", 60, 30, 4);
+}
+
 void setup(void) {
   tft.initR(INITR_BLACKTAB);
   tft.setRotation(1);
@@ -30,10 +34,16 @@ void setup(void) {
 void loop() {
   int newPosition = myEnc.read();
   encoderButton = digitalRead(12);
-  if (newPosition - oldPosition > 4 || oldPosition - newPosition > 4 || !encoderButton || flip == 1) {
+  if (newPosition - oldPosition > 3 || oldPosition - newPosition > 3 || !encoderButton || flip == 1) {
     flip = 0;
-    if (newPosition - oldPosition > 4) substate = (substate + 3 - 1) % 3;
-    if (oldPosition - newPosition > 4) substate = (substate + 1) % 3;
+    if (newPosition - oldPosition > 3) {
+      substate = (substate + 3 - 1) % 3;
+      defaultO2 -= 10;
+    }
+    if (oldPosition - newPosition > 3) {
+      substate = (substate + 1) % 3;
+      defaultO2 += 10;
+    }
     oldPosition = newPosition;
     tft.fillRect (0, 0, 200, 200, ST7735_BLACK);
     tft.setTextColor(ST7735_WHITE, ST7735_WHITE); // Note these fonts do not plot the background colour
@@ -42,45 +52,38 @@ void loop() {
     switch (state) {
 
       case 0: //default menu
-        tft.setTextColor(ST7735_WHITE, ST7735_WHITE);
-        if (substate == 0) {
-          tft.setTextColor(ST7735_YELLOW, ST7735_YELLOW);
-          if (encoderButton == 0) {
+        if (encoderButton == 0) {
+          flip = 1;
+          if (substate == 0) {
             state = 3;
-           // delay(100);
-            flip = 1;
             break;
           }
-        }
-        tft.drawCentreString("CALIBRATE", 75, 30, 4);
-        tft.setTextColor(ST7735_WHITE, ST7735_WHITE);
-        if (substate == 1) {
-          tft.setTextColor(ST7735_YELLOW, ST7735_YELLOW);
-          if (encoderButton == 0) {
+          if (substate == 1) {
             state = 2;
-         //   delay(100);
-            flip = 1;
             break;
           }
-        }
-        tft.drawCentreString("SET FiO2", 60, 60, 4);
-        tft.setTextColor(ST7735_WHITE, ST7735_WHITE);
-        if (substate == 2){
-          tft.setTextColor(ST7735_YELLOW, ST7735_YELLOW);
-          if(encoderButton==0){
+          if (substate == 2) {
             state = 1;
-         //   delay(100);
-            flip = 1;
             break;
           }
         }
+        if (substate == 0)tft.setTextColor(ST7735_YELLOW, ST7735_YELLOW);
+        else  tft.setTextColor(ST7735_WHITE, ST7735_WHITE);
+        tft.drawCentreString("CALIBRATE", 75, 30, 4);
+
+        if (substate == 1) tft.setTextColor(ST7735_YELLOW, ST7735_YELLOW);
+        else tft.setTextColor(ST7735_WHITE, ST7735_WHITE);
+        tft.drawCentreString("SET FiO2", 60, 60, 4);
+
+        if (substate == 2)tft.setTextColor(ST7735_YELLOW, ST7735_YELLOW);
+        else tft.setTextColor(ST7735_WHITE, ST7735_WHITE);
         tft.drawCentreString("Monitor", 50, 90, 4);
         break;
 
       case 1:
-         if (encoderButton == 0) {
+        if (encoderButton == 0) {
           state = 0;
-          delay(100);
+          // delay(100);
           flip = 1;
           break;
         }
@@ -94,38 +97,25 @@ void loop() {
       case 2:
         if (encoderButton == 0) {
           state = 0;
-          delay(100);
+          // delay(100);
           flip = 1;
           break;
         }
+        if (defaultO2 >= 100) defaultO2 = 100;
+        if (defaultO2 <= 20) defaultO2 = 20;
         tft.setTextColor(ST7735_RED, ST7735_RED);
         tft.drawCentreString("FiO2", 60, 30, 4);
         tft.setTextColor(ST7735_YELLOW, ST7735_YELLOW);
-        tft.drawCentreString("60 %", 60, 70, 4);
-        
-        while(encoderButton == 1){
-        newPosition = myEnc.read();
-        if(oldPosition - newPosition>3 || newPosition-oldPosition>3){
-          if(oldPosition - newPosition>3) defaultO2 +=10;
-          if(newPosition - oldPosition >3) defaultO2 -= 10;
-          if(defaultO2>=100) defaultO2 = 100;
-          if(defaultO2<=20) defaultO2 = 20;
-        oldPosition = newPosition;
-        tft.fillRect (0, 0, 200, 200, ST7735_BLACK);
-        tft.setTextColor(ST7735_RED, ST7735_RED);
-        tft.drawCentreString("FiO2", 60, 30, 4);
-        tft.setTextColor(ST7735_YELLOW, ST7735_YELLOW);
+        String str = String(defaultO2);
         tft.drawNumber(defaultO2, 40, 70, 4);
         tft.drawCentreString("%", 90, 70, 4);
-        }
         encoderButton = digitalRead(12);
-        }
         break;
 
       case 3: //calibration
         if (encoderButton == 0) {
           state = 0;
-          delay(100);
+          //  delay(100);
           flip = 1;
           break;
         }
@@ -143,32 +133,31 @@ void loop() {
 
       case 5://Low Respiration Rate Warning
         tft.setTextColor(ST7735_YELLOW, ST7735_YELLOW);
-        tft.drawCentreString("WARNING!", 60, 30, 4);
+        printWarning();
         tft.drawCentreString("Bradipnea", 50, 70, 4);
         break;
 
       case 6://High Respiration Rate Warning
         tft.setTextColor(ST7735_YELLOW, ST7735_YELLOW);
-        tft.drawCentreString("WARNING!", 60, 30, 4);
+        printWarning();
         tft.drawCentreString("Tachypnea", 50, 70, 4);
         break;
 
       case 7://Low expiratory pressure warning
         tft.setTextColor(ST7735_YELLOW, ST7735_YELLOW);
-        tft.drawCentreString("WARNING!", 60, 30, 4);
+        printWarning();
         tft.drawCentreString("Low Expiratory Pressure", 50, 70, 2);
         break;
 
       case 8://Valve Malfunction
         tft.setTextColor(ST7735_YELLOW, ST7735_YELLOW);
-        tft.drawCentreString("WARNING!", 60, 30, 4);
+        printWarning();
         tft.drawCentreString("Valve Malfunction", 50, 70, 2);
         break;
 
-
       case 9://Disconnection warning
         tft.setTextColor(ST7735_YELLOW, ST7735_YELLOW);
-        tft.drawCentreString("WARNING!", 60, 30, 4);
+        printWarning();
         tft.drawCentreString("Disconnection", 50, 70, 2);
         break;
     }
