@@ -3,11 +3,14 @@
 #define cs   9
 #define dc   8
 #define rst  7  // you can also connect this to the Arduino reset
+#define ANSWERSIZE 5
+
 #include <Adafruit_GFX_AS.h>    // Core graphics library
 #include <Adafruit_ST7735_AS.h> // Hardware-specific library
 #include <SPI.h>
 #include <Encoder.h>
 #include <String.h>
+#include <Wire.h>
 
 Adafruit_ST7735_AS tft = Adafruit_ST7735_AS(cs, dc, rst);       // Invoke custom library
 Encoder myEnc(5, 6);
@@ -15,22 +18,58 @@ Encoder myEnc(5, 6);
 byte state = 0;
 byte substate = 0;
 bool encoderButton = 1;
+bool pendingMessage;
 bool flip = 0;
 int oldPosition  = -999;
 uint8_t defaultO2 = 60;
-char fromUNO[10];
+char fromUNO[1];
 char toUNO[10];
 
-void readFromUno() {
-  Serial.readBytes(fromUNO, 10); //Read the serial data and store in var
+void checkExitState(){
+  if (encoderButton == 0) {
+          state = 0;
+          delay(100);
+          flip = 1;
+        }
 }
 
-void setup(void) {
+void readFromUno() {
+    while (0 < Wire.available()) {
+    byte x = Wire.read();
+    Serial.println(x);
+    state = x;
+    flip = 1;
+  }
+}
+
+void writeToUno(String answer){
+    // Setup byte variable in the correct size
+  byte response[ANSWERSIZE];
+  
+  // Format answer as array
+  for (byte i=0;i<ANSWERSIZE;i++) {
+    response[i] = (byte)answer.charAt(i);
+  }
+  Serial.println("hi");
+  // Send response back to Master
+  Wire.write(response,sizeof(response));
+}
+
+void setup() {
   tft.initR(INITR_BLACKTAB);
   tft.setRotation(1);
   tft.fillScreen(ST7735_BLACK);
   Serial.begin(9600);
+  Wire.begin(9);
+  
+  // Function to run when data requested from master
+  Wire.onRequest(writeToUno); 
+  
+  // Function to run when data received from master
+  Wire.onReceive(readFromUno);
+  
   pinMode(12, INPUT);
+  pinMode(30, INPUT);
 }
 
 void loop() {
@@ -142,30 +181,35 @@ void loop() {
         break;
 
       case 4://Low O2 warning
+        checkExitState();
         tft.setTextColor(ST7735_YELLOW, ST7735_YELLOW);
         tft.drawCentreString("WARNING!", 60, 30, 4);
         tft.drawCentreString("Low Oxygen", 35, 60, 4);
         break;
 
       case 5://Low Respiration Rate Warning
+      checkExitState();
         tft.setTextColor(ST7735_YELLOW, ST7735_YELLOW);
         tft.drawCentreString("WARNING!", 60, 30, 4);
         tft.drawCentreString("Bradipnea", 50, 70, 4);
         break;
 
       case 6://High Respiration Rate Warning
+      checkExitState();
         tft.setTextColor(ST7735_YELLOW, ST7735_YELLOW);
         tft.drawCentreString("WARNING!", 60, 30, 4);
         tft.drawCentreString("Tachypnea", 50, 70, 4);
         break;
 
       case 7://Low expiratory pressure warning
+      checkExitState();
         tft.setTextColor(ST7735_YELLOW, ST7735_YELLOW);
         tft.drawCentreString("WARNING!", 60, 30, 4);
         tft.drawCentreString("Low Expiratory Pressure", 50, 70, 2);
         break;
 
       case 8://Valve Malfunction
+      checkExitState();
         tft.setTextColor(ST7735_YELLOW, ST7735_YELLOW);
         tft.drawCentreString("WARNING!", 60, 30, 4);
         tft.drawCentreString("Valve Malfunction", 50, 70, 2);
@@ -178,7 +222,5 @@ void loop() {
         tft.drawCentreString("Disconnection", 50, 70, 2);
         break;
     }
-
-
   }
 }
