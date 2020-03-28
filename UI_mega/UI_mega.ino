@@ -1,9 +1,22 @@
+/*
+   Ventilator Challenge: MEGA UI Script
+   Author: Abdullatif Hassan
+   Date Started: March 23, 2020
+   Last Modified: March 28, 2020
+
+   Descrpition: The main aim behind this sketch is to control the LCD screen and the UI controls. SPI communication is used between an Arduino MEGA
+                and digital pins are used to communicate with a rotary encoder and a button both responsible for the user controls. The LCD screen follows
+                a state machine design where each state is a screen menu or notification.
+
+*/
+
 #define sclk 52  // Don't change
 #define mosi 51  // Don't change
 #define cs   9
 #define dc   8
 #define rst  7  // you can also connect this to the Arduino reset
 #define ANSWERSIZE 5
+#define BatteryPin A0
 
 #include <Adafruit_GFX_AS.h>    // Core graphics library
 #include <Adafruit_ST7735_AS.h> // Hardware-specific library
@@ -19,40 +32,70 @@ byte state = 0;
 byte substate = 0;
 bool encoderButton = 1;
 bool pendingMessage;
-bool flip = 0;
+bool flip = 0; //boolean used to change states
 int oldPosition  = -999;
 uint8_t defaultO2 = 60;
-char fromUNO[1];
-char toUNO[10];
+byte EP;
+byte IP;
+byte bpm;
+byte battery;
 
-void checkExitState(){
+void checkExitState() {
   if (encoderButton == 0) {
-          state = 0;
-          delay(100);
-          flip = 1;
-        }
-}
-
-void readFromUno() {
-    while (0 < Wire.available()) {
-    byte x = Wire.read();
-    Serial.println(x);
-    state = x;
+    state = 0;
+    delay(100);
     flip = 1;
   }
 }
 
-void writeToUno(String answer){
-    // Setup byte variable in the correct size
+int checkBattery() { // might include in m
+  float val = analogRead(BatteryPin);
+  val = 1000; //mock value
+  if (val > (3.7 / 5) * 1023) return 3;
+  if (((3.3 / 5) * 1023) < val && val < (3.7 / 5) * 1023) return 2;
+  if (((3 / 5) * 1023) < val && val < (3.3 / 5) * 1023) return 1;
+  return 0;
+}
+
+void readFromUno() {
+  // while (0 < Wire.available()) {
+  byte x = Wire.read();
+  Serial.print("This is x:");
+  Serial.println(x);
+  byte y = Wire.read();
+  Serial.print("This is y:");
+  Serial.println(y);
+  byte z = Wire.read();
+  Serial.print("This is z:");
+  Serial.println(z);
+  byte a = Wire.read();
+  Serial.print("This is a:");
+  Serial.println(a);
+  if (x != 100) {
+    state = x;
+    flip = 1;
+  }
+  if (x == 100 && state == 1) {
+    state = 1;
+    flip = 1;
+  }
+  // values to update on the monitor
+  IP = y;
+  EP = z;
+  bpm = a;
+
+  //}
+}
+
+void writeToUno(String answer) {
+  // Setup byte variable in the correct size
   byte response[ANSWERSIZE];
-  
+
   // Format answer as array
-  for (byte i=0;i<ANSWERSIZE;i++) {
+  for (byte i = 0; i < ANSWERSIZE; i++) {
     response[i] = (byte)answer.charAt(i);
   }
-  Serial.println("hi");
-  // Send response back to Master
-  Wire.write(response,sizeof(response));
+  Wire.write(response, sizeof(response));
 }
 
 void setup() {
@@ -62,12 +105,13 @@ void setup() {
   Serial.begin(9600);
   Wire.begin(9);
   
+
   // Function to run when data requested from master
-  Wire.onRequest(writeToUno); 
-  
+  Wire.onRequest(writeToUno);
+
   // Function to run when data received from master
   Wire.onReceive(readFromUno);
-  
+
   pinMode(12, INPUT);
   pinMode(30, INPUT);
 }
@@ -83,7 +127,12 @@ void loop() {
     tft.fillRect (0, 0, 200, 200, ST7735_BLACK);
     tft.setTextColor(ST7735_WHITE, ST7735_WHITE); // Note these fonts do not plot the background colour
     tft.setCursor (80, 5);
-    tft.print("Battery ||.");
+    battery = checkBattery();
+    if (battery == 0) state = 10;
+    if (battery == 1) tft.print("Battery |..");
+    if (battery == 2) tft.print("Battery ||.");
+    if (battery == 3) tft.print("Battery |||");
+
     switch (state) {
 
       case 0: //default menu
@@ -130,10 +179,14 @@ void loop() {
           break;
         }
         tft.setTextColor(ST7735_YELLOW, ST7735_YELLOW);
-        tft.drawCentreString("18 bpm", 50, 18, 4);
-        tft.drawCentreString("60%", 35, 45, 4);
-        tft.drawCentreString("40 mmH20", 70, 70, 4);
-        tft.drawCentreString("20 mmH20", 70, 95, 4);
+        tft.drawNumber(bpm, 10, 18, 4);
+        tft.drawCentreString("bpm", 80, 18, 4);
+        tft.drawNumber(defaultO2, 10, 45, 4);
+        tft.drawCentreString("%", 55, 45, 4);
+        tft.drawNumber(IP, 10, 70, 4);
+        tft.drawCentreString("mmH20", 90, 70, 4);
+        tft.drawNumber(EP, 10, 95, 4);
+        tft.drawCentreString("mmH20", 90, 95, 4);
         break;
 
       case 2:
@@ -188,38 +241,45 @@ void loop() {
         break;
 
       case 5://Low Respiration Rate Warning
-      checkExitState();
+        checkExitState();
         tft.setTextColor(ST7735_YELLOW, ST7735_YELLOW);
         tft.drawCentreString("WARNING!", 60, 30, 4);
         tft.drawCentreString("Bradipnea", 50, 70, 4);
         break;
 
       case 6://High Respiration Rate Warning
-      checkExitState();
+        checkExitState();
         tft.setTextColor(ST7735_YELLOW, ST7735_YELLOW);
         tft.drawCentreString("WARNING!", 60, 30, 4);
         tft.drawCentreString("Tachypnea", 50, 70, 4);
         break;
 
       case 7://Low expiratory pressure warning
-      checkExitState();
+        checkExitState();
         tft.setTextColor(ST7735_YELLOW, ST7735_YELLOW);
         tft.drawCentreString("WARNING!", 60, 30, 4);
         tft.drawCentreString("Low Expiratory Pressure", 50, 70, 2);
         break;
 
       case 8://Valve Malfunction
-      checkExitState();
+        checkExitState();
         tft.setTextColor(ST7735_YELLOW, ST7735_YELLOW);
         tft.drawCentreString("WARNING!", 60, 30, 4);
         tft.drawCentreString("Valve Malfunction", 50, 70, 2);
         break;
 
-
       case 9://Disconnection warning
+        checkExitState();
         tft.setTextColor(ST7735_YELLOW, ST7735_YELLOW);
         tft.drawCentreString("WARNING!", 60, 30, 4);
         tft.drawCentreString("Disconnection", 50, 70, 2);
+        break;
+
+      case 10://Low Battery warning
+        checkExitState();
+        tft.setTextColor(ST7735_YELLOW, ST7735_YELLOW);
+        tft.drawCentreString("WARNING!", 60, 30, 4);
+        tft.drawCentreString("LOW BATTERY", 50, 70, 2);
         break;
     }
   }
