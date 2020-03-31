@@ -2,9 +2,9 @@
    Ventilator Challenge: UNO Script
    Author: Abdullatif Hassan
    Date Started: March 25, 2020
-   Last Modified: March 27, 2020
+   Last Modified: March 31, 2020
 
-   Descrpition: This is the first crude version for the controls that the Arduino UNO board uses in the Ventilator System. The aim behind this version is to outline the control system that
+   Descrpition: This is the sketch that controls the Arduino UNO board uses in the Ventilator System. The aim behind it is to implement the control system that
                 will be used to control the operation of the vebtilator. Due to the lack of sensor data at the time being, mock data is used throughout the implementation. I2C communication
                 is used to interface between the Arduino UNO, and an Arduino Mega controlling the User Interface.
 
@@ -72,7 +72,7 @@ void setup() {
   bpm = 20;
   targetIP = 40;
   expValve = 1;
-  lastBreathStart = -(60 / bpm) * 1000;
+  lastBreathStart = -(60 / Targetbpm) * 1000;
   motorPosition = 0;
   pinMode(8, OUTPUT);
   digitalWrite(8, LOW);
@@ -101,10 +101,13 @@ void loop() {
 
         if (IP >= criticalIP) {
           Serial.println("Warning High Inspiratory Pressure"); //this will be sent to the lcd screen in later versions
+          printToMega(9); // add extra error menu
           break;
         }
         else {
-          motor.write(maxMotor);
+          int difference = targetIP - IP;
+          int deliver = (difference/targetIP)*maxMotor;
+          motor.write(deliver); // make p controller 
         }
 
       }

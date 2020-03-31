@@ -48,9 +48,9 @@ void checkExitState() {
   }
 }
 
-int checkBattery() { // might include in m
+int checkBattery() { 
   float val = analogRead(BatteryPin);
-  val = 1000; //mock value
+  //val = 1000; //mock value
   if (val > (3.7 / 5) * 1023) return 3;
   if (((3.3 / 5) * 1023) < val && val < (3.7 / 5) * 1023) return 2;
   if (((3 / 5) * 1023) < val && val < (3.3 / 5) * 1023) return 1;
